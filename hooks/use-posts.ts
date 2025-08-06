@@ -172,8 +172,10 @@ export function useCreateComment() {
 export function useUpdateComment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ commentId, content }) => commentApi.updateComment(commentId, content),
-    onSuccess: (_, { postId }) => queryClient.invalidateQueries({ queryKey: ['comments', postId] }),
+    mutationFn: ({ postId, commentId, content }: { postId: number; commentId: number; content: string }) =>
+      commentApi.updateComment(commentId, content),
+    onSuccess: (_, { postId }) =>
+      queryClient.invalidateQueries({ queryKey: ['comments', postId] }),
   })
 }
 
@@ -181,12 +183,20 @@ export function useUpdateComment() {
 export function useDeleteComment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (commentId: number) => commentApi.deleteComment(commentId),
-    onSuccess: () =>
-      // 댓글 목록 캐시 무효화 
-      queryClient.invalidateQueries({ queryKey: ['comments'] }),
-    // 포스트의 댓글 수 업데이트 (댓글 목록에서 postId를 찾아야 함)
-    // 이 부분은 실제 구현에서 댓글 데이터 구조에 따라 조정 필요
+    mutationFn: ({ postId, commentId }: { postId: number; commentId: number }) =>
+      commentApi.deleteComment(commentId),
+    onSuccess: (_, { postId }) => {
+      queryClient.invalidateQueries({ queryKey: ['comments', postId] })
+      queryClient.setQueryData(['post', postId], (old: any) => {
+        if (old?.data) {
+          return {
+            ...old,
+            data: { ...old.data, comments: Math.max(0, old.data.comments - 1) },
+          }
+        }
+        return old
+      })
+    },
   })
 }
 
@@ -212,7 +222,8 @@ export function useCreateReply() {
 export function useToggleCommentLike() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (commentId: number) => commentApi.toggleCommentLike(commentId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['comments'] }),
+    mutationFn: ({ postId, commentId }: { postId: number; commentId: number }) =>
+      commentApi.toggleCommentLike(commentId),
+    onSuccess: (_, { postId }) => qc.invalidateQueries({ queryKey: ['comments', postId] }),
   })
 }
